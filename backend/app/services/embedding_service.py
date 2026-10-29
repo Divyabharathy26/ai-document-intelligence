@@ -1,9 +1,9 @@
-
+```python
 import os
 
 from dotenv import load_dotenv
 from google import genai
-from google.genai import errors
+from google.genai import errors, types
 
 load_dotenv()
 
@@ -16,7 +16,7 @@ BATCH_SIZE = 16
 
 
 def generate_embeddings(texts: list[str]) -> list[list[float]]:
-    """Generate embeddings for multiple texts in batches."""
+    """Generate separate embeddings for texts in batches."""
 
     if not texts:
         raise ValueError("At least one text is required.")
@@ -36,9 +36,16 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
         for start in range(0, len(texts), BATCH_SIZE):
             batch = texts[start:start + BATCH_SIZE]
 
+            contents = [
+                types.Content(
+                    parts=[types.Part.from_text(text=text)]
+                )
+                for text in batch
+            ]
+
             response = client.models.embed_content(
                 model=EMBEDDING_MODEL,
-                contents=batch,
+                contents=contents,
                 config={"output_dimensionality": 768},
             )
 
@@ -70,6 +77,10 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
 
 
 def generate_embedding(text: str) -> list[float]:
-    """Generate an embedding for a single text."""
+    """Generate one embedding for a question or text."""
+
+    if not text or not text.strip():
+        raise ValueError("Text must not be empty.")
 
     return generate_embeddings([text])[0]
+```
