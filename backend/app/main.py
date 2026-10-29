@@ -1,14 +1,14 @@
+
 import logging
+
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.services.gemini_service import generate_ai_response
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from app.services.pdf_service import extract_pdf_text
 from app.services.summarization_service import summarize_document
-
 from app.services.document_processing_service import process_pdf_document
 from app.services.vector_store_service import create_vector_index
 from app.services.rag_service import answer_document_question
@@ -22,6 +22,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS configuration for local development and deployed Vercel frontend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -30,9 +31,12 @@ app.add_middleware(
         "https://ai-document-intelligence-git-main-divyabharathy26.vercel.app",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+MAX_PDF_SIZE = 10 * 1024 * 1024  # 10 MB
+
 
 class AITestRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=1000)
@@ -40,10 +44,6 @@ class AITestRequest(BaseModel):
 
 class AITestResponse(BaseModel):
     response: str
-
-
-class DocumentChatRequest(BaseModel):
-    question: str = Query(min_length=3, max_length=1000),
 
 
 @app.get("/")
@@ -72,13 +72,13 @@ def ai_test(request: AITestRequest):
             detail=str(exc),
         ) from exc
 
-    except Exception:
+    except Exception as exc:
         logger.exception("Unexpected AI service error")
         raise HTTPException(
             status_code=502,
             detail="The AI service is temporarily unavailable.",
-        )
-MAX_PDF_SIZE = 10 * 1024 * 1024  # 10 MB
+        ) from exc
+
 
 @app.post("/api/documents/extract")
 async def extract_document(file: UploadFile = File(...)):
@@ -177,6 +177,7 @@ async def summarize_uploaded_document(file: UploadFile = File(...)):
                 "Please try again later."
             ),
         ) from exc
+
     except httpx.RequestError:
         logger.warning(
             "Network error while contacting the AI service",
@@ -189,20 +190,18 @@ async def summarize_uploaded_document(file: UploadFile = File(...)):
                 "Please check your internet connection and retry."
             ),
         )
-    except Exception:
+
+    except Exception as exc:
         logger.exception("Unexpected document summarization error")
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while processing the PDF.",
-        )
+        ) from exc
 
 
 @app.post("/api/documents/chat")
 async def chat_with_document(
-    question: str = __import__("fastapi").Query(
-        min_length=3,
-        max_length=1000,
-    ),
+    question: str = Query(min_length=3, max_length=1000),
     file: UploadFile = File(...),
 ):
     """Answer a question using evidence retrieved from an uploaded PDF."""
@@ -259,10 +258,9 @@ async def chat_with_document(
             detail="The AI service is temporarily unavailable.",
         ) from exc
 
-    except Exception:
+    except Exception as exc:
         logger.exception("Unexpected document chat error")
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while answering the question.",
-        )
-
+        ) from exc
