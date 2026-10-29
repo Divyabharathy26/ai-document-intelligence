@@ -1,4 +1,3 @@
-```python
 import os
 
 from dotenv import load_dotenv
@@ -83,4 +82,3 @@ def generate_embedding(text: str) -> list[float]:
         raise ValueError("Text must not be empty.")
 
     return generate_embeddings([text])[0]
-```
