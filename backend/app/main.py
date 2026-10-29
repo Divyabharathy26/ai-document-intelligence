@@ -1,35 +1,3 @@
-
-# from fastapi import FastAPI
-# from fastapi.middleware.cors import CORSMiddleware
-
-# app = FastAPI(
-#     title="AI Document Intelligence Platform",
-#     description="AI-powered document analysis and question answering.",
-#     version="1.0.0",
-# )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:5173"],
-#     allow_credentials=False,
-#     allow_methods=["GET", "POST"],
-#     allow_headers=["Content-Type", "Authorization"],
-# )
-
-
-# @app.get("/")
-# async def root():
-#     return {
-#         "message": "AI Document Intelligence Platform API",
-#         "status": "running",
-#     }
-
-
-# @app.get("/health")
-# async def health_check():
-#     return {"status": "healthy"}
-
-
 import logging
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -56,12 +24,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://ai-document-intelligence-xi.vercel.app",
+        "https://ai-document-intelligence-git-main-divyabharathy26.vercel.app",
+    ],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
 )
-
 
 class AITestRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=1000)
