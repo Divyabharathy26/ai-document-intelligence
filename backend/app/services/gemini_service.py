@@ -32,8 +32,8 @@ def generate_ai_response(prompt: str) -> str:
 
         return response.text.strip()
 
-    except errors.APIError as exc:
-        raise RuntimeError(
-            "Gemini could not process the request. "
-            "Check the API configuration and usage quota."
-        ) from exc
+   except errors.APIError as exc:
+    raise RuntimeError(
+        f"Gemini API request failed with status "
+        f"{getattr(exc, 'code', 'unknown')}: {exc}"
+    ) from exc
