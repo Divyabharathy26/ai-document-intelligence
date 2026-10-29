@@ -44,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAX_PDF_SIZE = 10 * 1024 * 1024
+MAX_PDF_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 # --------------------------------------------------
@@ -119,7 +119,6 @@ def health_check():
 def ai_test(request: AITestRequest):
     try:
         result = generate_ai_response(request.prompt)
-
         return AITestResponse(response=result)
 
     except RuntimeError as exc:
@@ -165,7 +164,12 @@ async def extract_document(file: UploadFile = File(...)):
             "text": result["text"],
         }
 
+    except HTTPException:
+        raise
+
     except ValueError as exc:
+        logger.warning("PDF extraction validation failed: %s", exc)
+
         raise HTTPException(
             status_code=422,
             detail=str(exc),
@@ -199,7 +203,12 @@ async def summarize_uploaded_document(file: UploadFile = File(...)):
             "character_count": result["character_count"],
         }
 
+    except HTTPException:
+        raise
+
     except ValueError as exc:
+        logger.warning("Document summarization validation failed: %s", exc)
+
         raise HTTPException(
             status_code=422,
             detail=str(exc),
@@ -231,7 +240,7 @@ async def summarize_uploaded_document(file: UploadFile = File(...)):
 
 
 # --------------------------------------------------
-# Chat with PDF using RAG
+# Chat with PDF using retrieval-augmented generation
 # --------------------------------------------------
 
 @app.post("/api/documents/chat")
@@ -240,48 +249,58 @@ async def chat_with_document(
     file: UploadFile = File(...),
 ):
     content = await read_pdf_upload(file)
+    filename = file.filename or "uploaded.pdf"
 
     try:
         logger.info(
             "Document chat started: filename=%s, question_length=%d",
-            file.filename,
+            filename,
             len(question),
         )
 
-        # Step 1: Extract and split the PDF into chunks.
+        # Stage 1: Extract and split the PDF.
         document = process_pdf_document(content)
+        chunks = document.get("chunks", [])
 
-        if not document.get("chunks"):
+        if not chunks:
             raise HTTPException(
                 status_code=422,
                 detail="No readable text was found in the PDF.",
             )
 
         logger.info(
-            "PDF processed: filename=%s, pages=%d, chunks=%d",
-            file.filename,
+            "PDF processing completed: filename=%s, pages=%d, chunks=%d",
+            filename,
             document["page_count"],
-            len(document["chunks"]),
+            len(chunks),
         )
 
-        # Step 2: Create embeddings and the vector index.
-        indexed_chunks = create_vector_index(document["chunks"])
+        # Stage 2: Create the vector index using embeddings.
+        indexed_chunks = create_vector_index(chunks)
+
+        if not indexed_chunks:
+            raise RuntimeError(
+                "The vector index did not contain any indexed chunks."
+            )
 
         logger.info(
-            "Document vector index created: chunks=%d",
+            "Vector index created successfully: chunks=%d",
             len(indexed_chunks),
         )
 
-        # Step 3: Retrieve relevant passages and generate an answer.
+        # Stage 3: Retrieve relevant passages and generate the answer.
         result = answer_document_question(
-            question=question,
+            question=question.strip(),
             indexed_chunks=indexed_chunks,
         )
 
-        logger.info("Document chat completed successfully")
+        logger.info(
+            "Document chat completed successfully: filename=%s",
+            filename,
+        )
 
         return {
-            "filename": file.filename,
+            "filename": filename,
             "page_count": document["page_count"],
             "answer": result["answer"],
             "citations": result["citations"],
@@ -299,13 +318,15 @@ async def chat_with_document(
         ) from exc
 
     except RuntimeError as exc:
-        # Keep detailed diagnostics in Render logs.
-        # Do not expose internal API errors to the client.
+        # The traceback includes the underlying exception chain.
         logger.exception("Document chat service failure")
 
         raise HTTPException(
             status_code=502,
-            detail="The AI service is temporarily unavailable. Please retry later.",
+            detail=(
+                "The AI service is temporarily unavailable. "
+                "Please try again later."
+            ),
         ) from exc
 
     except httpx.RequestError as exc:
@@ -317,7 +338,10 @@ async def chat_with_document(
         ) from exc
 
     except Exception as exc:
-        logger.exception("Unexpected document chat error")
+        logger.exception(
+            "Unexpected document chat error: filename=%s",
+            filename,
+        )
 
         raise HTTPException(
             status_code=500,
