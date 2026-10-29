@@ -1,3 +1,4 @@
+
 import os
 
 from dotenv import load_dotenv
@@ -12,10 +13,11 @@ EMBEDDING_MODEL = os.getenv(
 )
 
 BATCH_SIZE = 16
+OUTPUT_DIMENSIONALITY = 768
 
 
 def generate_embeddings(texts: list[str]) -> list[list[float]]:
-    """Generate separate embeddings for texts in batches."""
+    """Generate one embedding per text, processing texts in batches."""
 
     if not texts:
         raise ValueError("At least one text is required.")
@@ -24,7 +26,6 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
         raise ValueError("Texts must not be empty.")
 
     api_key = os.getenv("GEMINI_API_KEY")
-
     if not api_key:
         raise RuntimeError("Gemini API key is not configured.")
 
@@ -33,7 +34,7 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
 
     try:
         for start in range(0, len(texts), BATCH_SIZE):
-            batch = texts[start:start + BATCH_SIZE]
+            batch = texts[start : start + BATCH_SIZE]
 
             contents = [
                 types.Content(
@@ -45,7 +46,9 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
             response = client.models.embed_content(
                 model=EMBEDDING_MODEL,
                 contents=contents,
-                config={"output_dimensionality": 768},
+                config={
+                    "output_dimensionality": OUTPUT_DIMENSIONALITY,
+                },
             )
 
             if (
@@ -76,9 +79,9 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
 
 
 def generate_embedding(text: str) -> list[float]:
-    """Generate one embedding for a question or text."""
+    """Generate one embedding for a question."""
 
     if not text or not text.strip():
         raise ValueError("Text must not be empty.")
 
-    return generate_embeddings([text])[0]
+    return generate_embeddings([text.strip()])[0]
