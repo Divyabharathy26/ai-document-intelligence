@@ -1,4 +1,3 @@
-
 import math
 from typing import Any
 
@@ -30,17 +29,23 @@ def cosine_similarity(
     return dot_product / (norm_a * norm_b)
 
 
-
 def create_vector_index(
     chunks: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Generate embeddings in batches and attach them to chunks."""
 
-    valid_chunks = [
-        {**chunk, "text": chunk.get("text", "").strip()}
-        for chunk in chunks
-        if chunk.get("text", "").strip()
-    ]
+    valid_chunks = []
+
+    for chunk in chunks:
+        text = chunk.get("text", "").strip()
+
+        if not text:
+            continue
+
+        valid_chunks.append({
+            **chunk,
+            "text": text,
+        })
 
     if not valid_chunks:
         raise ValueError("No valid chunks were provided.")
@@ -57,17 +62,14 @@ def create_vector_index(
     indexed_chunks = []
 
     for chunk, embedding in zip(valid_chunks, embeddings):
-        indexed_chunks.append(
-            {
-                "chunk_id": chunk["chunk_id"],
-                "page_number": chunk["page_number"],
-                "text": chunk["text"],
-                "embedding": embedding,
-            }
-        )
+        indexed_chunks.append({
+            "chunk_id": chunk["chunk_id"],
+            "page_number": chunk["page_number"],
+            "text": chunk["text"],
+            "embedding": embedding,
+        })
 
     return indexed_chunks
-
 
 
 def retrieve_relevant_chunks(
@@ -96,14 +98,12 @@ def retrieve_relevant_chunks(
             chunk["embedding"],
         )
 
-        scored_chunks.append(
-            {
-                "chunk_id": chunk["chunk_id"],
-                "page_number": chunk["page_number"],
-                "text": chunk["text"],
-                "similarity": score,
-            }
-        )
+        scored_chunks.append({
+            "chunk_id": chunk["chunk_id"],
+            "page_number": chunk["page_number"],
+            "text": chunk["text"],
+            "similarity": score,
+        })
 
     scored_chunks.sort(
         key=lambda item: item["similarity"],
