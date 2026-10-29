@@ -251,12 +251,12 @@ async def chat_with_document(
             detail=str(exc),
         ) from exc
 
-    except RuntimeError as exc:
-        logger.warning("Document chat failed: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail="The AI service is temporarily unavailable.",
-        ) from exc
+   except RuntimeError as exc:
+    logger.exception("Document chat failed")
+    raise HTTPException(
+        status_code=502,
+        detail="The AI service is temporarily unavailable.",
+    ) from exc
 
     except Exception as exc:
         logger.exception("Unexpected document chat error")
