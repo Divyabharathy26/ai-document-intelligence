@@ -1,8 +1,10 @@
-
 import math
 from typing import Any
 
-from app.services.embedding_service import generate_embedding
+from app.services.embedding_service import (
+    generate_embedding,
+    generate_embeddings,
+)
 
 
 def cosine_similarity(
@@ -30,9 +32,9 @@ def cosine_similarity(
 def create_vector_index(
     chunks: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Generate and attach embeddings to document chunks."""
+    """Generate embeddings in batches and attach them to chunks."""
 
-    indexed_chunks = []
+    valid_chunks = []
 
     for chunk in chunks:
         text = chunk.get("text", "").strip()
@@ -40,19 +42,32 @@ def create_vector_index(
         if not text:
             continue
 
-        embedding = generate_embedding(text)
+        valid_chunks.append({
+            **chunk,
+            "text": text,
+        })
 
-        indexed_chunks.append(
-            {
-                "chunk_id": chunk["chunk_id"],
-                "page_number": chunk["page_number"],
-                "text": text,
-                "embedding": embedding,
-            }
+    if not valid_chunks:
+        raise ValueError("No valid chunks were provided.")
+
+    embeddings = generate_embeddings(
+        [chunk["text"] for chunk in valid_chunks]
+    )
+
+    if len(embeddings) != len(valid_chunks):
+        raise RuntimeError(
+            "The number of embeddings does not match the chunks."
         )
 
-    if not indexed_chunks:
-        raise ValueError("No valid chunks were provided.")
+    indexed_chunks = []
+
+    for chunk, embedding in zip(valid_chunks, embeddings):
+        indexed_chunks.append({
+            "chunk_id": chunk["chunk_id"],
+            "page_number": chunk["page_number"],
+            "text": chunk["text"],
+            "embedding": embedding,
+        })
 
     return indexed_chunks
 
@@ -83,14 +98,12 @@ def retrieve_relevant_chunks(
             chunk["embedding"],
         )
 
-        scored_chunks.append(
-            {
-                "chunk_id": chunk["chunk_id"],
-                "page_number": chunk["page_number"],
-                "text": chunk["text"],
-                "similarity": score,
-            }
-        )
+        scored_chunks.append({
+            "chunk_id": chunk["chunk_id"],
+            "page_number": chunk["page_number"],
+            "text": chunk["text"],
+            "similarity": score,
+        })
 
     scored_chunks.sort(
         key=lambda item: item["similarity"],
